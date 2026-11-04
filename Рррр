@@ -1,0 +1,423 @@
+--// GLITCH HUB  |  Auto Jump + Super Jump  |  animated glitch UI
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local lp = Players.LocalPlayer
+local FONT = Enum.Font.Code -- пиксельно-моноширинный шрифт (можно заменить на Enum.Font.Arcade)
+
+--// Settings
+local State = { AutoJump = false, SuperJump = false, JumpPower = 100 }
+local DefaultJumpPower = 50
+
+--// Parent
+local function getParent()
+	local ok, ui = pcall(function() return gethui and gethui() end)
+	if ok and ui then return ui end
+	ok, ui = pcall(function() return game:GetService("CoreGui") end)
+	if ok and ui then return ui end
+	return lp:WaitForChild("PlayerGui")
+end
+
+local old = getParent():FindFirstChild("GlitchHub")
+if old then old:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "GlitchHub"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = getParent()
+
+--// Palette
+local C = {
+	bg = Color3.fromRGB(14, 10, 20),
+	panel = Color3.fromRGB(26, 18, 38),
+	accent = Color3.fromRGB(255, 40, 120),
+	accent2 = Color3.fromRGB(0, 255, 240),
+	text = Color3.fromRGB(240, 235, 255),
+	dim = Color3.fromRGB(160, 150, 180),
+	off = Color3.fromRGB(60, 50, 75),
+}
+
+local function new(class, props, parent)
+	local o = Instance.new(class)
+	for k, v in pairs(props) do o[k] = v end
+	o.Parent = parent
+	return o
+end
+local function corner(p, r) new("UICorner", { CornerRadius = UDim.new(0, r) }, p) end
+
+--// Main window
+local main = new("Frame", {
+	Name = "Main", Size = UDim2.fromOffset(460, 300),
+	Position = UDim2.new(0.5, -230, 0.5, -150),
+	BackgroundColor3 = C.bg, BorderSizePixel = 0, ClipsDescendants = true,
+}, gui)
+corner(main, 16)
+local stroke = new("UIStroke", { Color = C.accent, Thickness = 2 }, main)
+
+-- scanlines
+local scan = new("Frame", { Size = UDim2.new(1, -24, 0, 3), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = C.accent2,
+	BackgroundTransparency = 0.85, BorderSizePixel = 0, ZIndex = 20 }, main)
+
+-- glitch bar (random slice)
+local slice = new("Frame", { Size = UDim2.new(1, -24, 0, 6), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = C.accent,
+	BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 19 }, main)
+
+--// Top bar
+local top = new("Frame", { Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = C.panel, BorderSizePixel = 0 }, main)
+corner(top, 16)
+new("Frame", { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 1, -18),
+	BackgroundColor3 = C.panel, BorderSizePixel = 0 }, top)
+for i, col in ipairs({ Color3.fromRGB(255, 95, 86), Color3.fromRGB(255, 189, 46), Color3.fromRGB(39, 201, 63) }) do
+	local d = new("TextButton", { Text = "", Size = UDim2.fromOffset(12, 12),
+		Position = UDim2.fromOffset(10 + (i - 1) * 18, 12), BackgroundColor3 = col, BorderSizePixel = 0, AutoButtonColor = false }, top)
+	corner(d, 6)
+	if i == 1 then d.MouseButton1Click:Connect(function() gui:Destroy() end) end
+	if i == 2 then d.MouseButton1Click:Connect(function() main.Visible = false; end) end
+end
+
+-- Glitch title (3 layers)
+local function titleLabel(color, z)
+	return new("TextLabel", { Text = "GLITCH HUB", Font = FONT, TextSize = 18, TextColor3 = color,
+		BackgroundTransparency = 1, Size = UDim2.new(0, 160, 1, 0), Position = UDim2.new(0, 80, 0, 0),
+		TextXAlignment = Enum.TextXAlignment.Left, ZIndex = z }, top)
+end
+local tRed = titleLabel(C.accent, 2)
+local tCyan = titleLabel(C.accent2, 2)
+local tMain = titleLabel(C.text, 3)
+new("TextLabel", { Text = "murder mystery 2 // v1.0", Font = FONT, TextSize = 12, TextColor3 = C.dim,
+	BackgroundTransparency = 1, Size = UDim2.new(0, 180, 1, 0), Position = UDim2.new(1, -190, 0, 0),
+	TextXAlignment = Enum.TextXAlignment.Right }, top)
+
+--// Dragging
+do
+	local dragging, startPos, startInput
+	top.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging, startPos, startInput = true, main.Position, i.Position
+			i.Changed:Connect(function() if i.UserInputState == Enum.UserInputState.End then dragging = false end end)
+		end
+	end)
+	UIS.InputChanged:Connect(function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			local d = i.Position - startInput
+			main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+		end
+	end)
+end
+
+--// Sidebar + pages
+local side = new("Frame", { Size = UDim2.new(0, 110, 1, -36), Position = UDim2.fromOffset(0, 36),
+	BackgroundColor3 = C.panel, BorderSizePixel = 0 }, main)
+corner(side, 16)
+new("Frame", { Size = UDim2.fromOffset(110, 20), Position = UDim2.fromOffset(0, 36),
+	BackgroundColor3 = C.panel, BorderSizePixel = 0 }, main)
+new("Frame", { Size = UDim2.new(0, 20, 1, -36), Position = UDim2.fromOffset(90, 36),
+	BackgroundColor3 = C.panel, BorderSizePixel = 0 }, main)
+new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, side)
+new("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }, side)
+
+local pages, tabs = {}, {}
+local function makePage(name)
+	local p = new("ScrollingFrame", { Name = name, Size = UDim2.new(1, -126, 1, -52), Position = UDim2.fromOffset(118, 44),
+		BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = C.accent,
+		CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, Visible = false }, main)
+	new("UIListLayout", { Padding = UDim.new(0, 8) }, p)
+	pages[name] = p
+	local b = new("TextButton", { Text = "  " .. name, Font = FONT, TextSize = 15, TextColor3 = C.dim,
+		Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = C.bg, BorderSizePixel = 0,
+		TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false }, side)
+	corner(b, 8)
+	tabs[name] = b
+	b.MouseButton1Click:Connect(function()
+		for n, pg in pairs(pages) do pg.Visible = (n == name) end
+		for n, bt in pairs(tabs) do
+			TweenService:Create(bt, TweenInfo.new(0.2), { TextColor3 = n == name and C.text or C.dim,
+				BackgroundColor3 = n == name and C.panel or C.bg }):Play()
+		end
+	end)
+	return p
+end
+
+local function card(parent, h)
+	local f = new("Frame", { Size = UDim2.new(1, -6, 0, h), BackgroundColor3 = C.panel,
+		BackgroundTransparency = 0.2, BorderSizePixel = 0 }, parent)
+	corner(f, 8)
+	return f
+end
+
+local function toggle(parent, title, desc, key, cb)
+	local f = card(parent, 58)
+	new("TextLabel", { Text = title, Font = FONT, TextSize = 16, TextColor3 = C.text, BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(10, 6), Size = UDim2.new(1, -70, 0, 20), TextXAlignment = Enum.TextXAlignment.Left }, f)
+	new("TextLabel", { Text = desc, Font = FONT, TextSize = 12, TextColor3 = C.dim, BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(10, 28), Size = UDim2.new(1, -70, 0, 20), TextXAlignment = Enum.TextXAlignment.Left }, f)
+	local sw = new("TextButton", { Text = "", Size = UDim2.fromOffset(44, 22), Position = UDim2.new(1, -54, 0.5, -11),
+		BackgroundColor3 = C.off, AutoButtonColor = false, BorderSizePixel = 0 }, f)
+	corner(sw, 11)
+	local knob = new("Frame", { Size = UDim2.fromOffset(16, 16), Position = UDim2.fromOffset(3, 3),
+		BackgroundColor3 = C.text, BorderSizePixel = 0 }, sw)
+	corner(knob, 8)
+	sw.MouseButton1Click:Connect(function()
+		State[key] = not State[key]
+		local on = State[key]
+		TweenService:Create(sw, TweenInfo.new(0.15), { BackgroundColor3 = on and C.accent or C.off }):Play()
+		TweenService:Create(knob, TweenInfo.new(0.15), { Position = on and UDim2.fromOffset(25, 3) or UDim2.fromOffset(3, 3) }):Play()
+		if cb then cb(on) end
+	end)
+end
+
+local function slider(parent, title, min, max, default, key, cb)
+	local f = card(parent, 62)
+	local lbl = new("TextLabel", { Text = title .. ": " .. default, Font = FONT, TextSize = 16, TextColor3 = C.text,
+		BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 6), Size = UDim2.new(1, -20, 0, 20),
+		TextXAlignment = Enum.TextXAlignment.Left }, f)
+	local bar = new("Frame", { Size = UDim2.new(1, -24, 0, 8), Position = UDim2.fromOffset(12, 38),
+		BackgroundColor3 = C.off, BorderSizePixel = 0 }, f)
+	corner(bar, 4)
+	local fill = new("Frame", { Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
+		BackgroundColor3 = C.accent, BorderSizePixel = 0 }, bar)
+	corner(fill, 4)
+	local dragging = false
+	local function set(x)
+		local a = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+		local v = math.floor(min + (max - min) * a)
+		fill.Size = UDim2.new(a, 0, 1, 0)
+		lbl.Text = title .. ": " .. v
+		State[key] = v
+		if cb then cb(v) end
+	end
+	bar.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = true; set(i.Position.X)
+		end
+	end)
+	UIS.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+	end)
+	UIS.InputChanged:Connect(function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			set(i.Position.X)
+		end
+	end)
+end
+
+--// Jump logic
+local function hum()
+	local c = lp.Character
+	return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+local function applyJump()
+	local h = hum()
+	if not h then return end
+	h.UseJumpPower = true
+	h.JumpPower = State.SuperJump and State.JumpPower or DefaultJumpPower
+end
+
+RunService.Stepped:Connect(function()
+	if not State.AutoJump then return end
+	local h = hum()
+	if not h or h.Health <= 0 then return end
+	local s = h:GetState()
+	if s ~= Enum.HumanoidStateType.Jumping and s ~= Enum.HumanoidStateType.Freefall
+		and s ~= Enum.HumanoidStateType.Dead and not h.Sit then
+		h:ChangeState(Enum.HumanoidStateType.Jumping)
+		h.Jump = true
+	end
+end)
+
+lp.CharacterAdded:Connect(function(char)
+	char:WaitForChild("Humanoid")
+	task.wait(0.5)
+	applyJump()
+end)
+
+--// Build pages
+local pMain = makePage("Main")
+local pMisc = makePage("Misc")
+
+toggle(pMain, "Auto Jump", "Прыгает автоматически", "AutoJump")
+toggle(pMain, "Super Jump", "Увеличивает силу прыжка", "SuperJump", function() applyJump() end)
+slider(pMain, "JumpPower", 50, 300, State.JumpPower, "JumpPower", function() if State.SuperJump then applyJump() end end)
+
+do
+	local f = card(pMisc, 58)
+	new("TextLabel", { Text = "Glitch Hub", Font = FONT, TextSize = 16, TextColor3 = C.text, BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(10, 6), Size = UDim2.new(1, -20, 0, 20), TextXAlignment = Enum.TextXAlignment.Left }, f)
+	new("TextLabel", { Text = "RightShift — скрыть/показать меню", Font = FONT, TextSize = 12, TextColor3 = C.dim,
+		BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 28), Size = UDim2.new(1, -20, 0, 20),
+		TextXAlignment = Enum.TextXAlignment.Left }, f)
+	local f2 = card(pMisc, 40)
+	local b = new("TextButton", { Text = "Unload Hub", Font = FONT, TextSize = 15, TextColor3 = C.text,
+		Size = UDim2.new(1, -16, 0, 28), Position = UDim2.fromOffset(8, 6), BackgroundColor3 = C.accent,
+		BorderSizePixel = 0, AutoButtonColor = true }, f2)
+	corner(b, 6)
+	b.MouseButton1Click:Connect(function()
+		State.AutoJump, State.SuperJump = false, false
+		applyJump()
+		gui:Destroy()
+	end)
+end
+
+pages.Main.Visible = true
+tabs.Main.TextColor3 = C.text
+tabs.Main.BackgroundColor3 = C.panel
+
+-- Toggle key
+UIS.InputBegan:Connect(function(i, gp)
+	if not gp and i.KeyCode == Enum.KeyCode.RightShift then main.Visible = not main.Visible end
+end)
+
+-- Mobile open button
+local open = new("TextButton", { Text = "GH", Font = FONT, TextSize = 16, TextColor3 = C.text,
+	Size = UDim2.fromOffset(40, 40), Position = UDim2.new(0, 10, 0.5, -20), BackgroundColor3 = C.panel,
+	BorderSizePixel = 0 }, gui)
+corner(open, 20)
+new("UIStroke", { Color = C.accent, Thickness = 2 }, open)
+open.MouseButton1Click:Connect(function() main.Visible = not main.Visible end)
+
+--// GLITCH EFFECTS
+local chars = "!<>-_\\/[]{}=+*^?#01"
+local base = "GLITCH HUB"
+local rng = Random.new()
+
+task.spawn(function()
+	while gui.Parent do
+		task.wait(0.05)
+		local burst = rng:NextNumber() < 0.15
+
+		-- title RGB split
+		local off = burst and rng:NextInteger(3, 7) or 1
+		tRed.Position = UDim2.new(0, 80 - off, 0, rng:NextInteger(-1, 1))
+		tCyan.Position = UDim2.new(0, 80 + off, 0, rng:NextInteger(-1, 1))
+		tMain.Position = UDim2.new(0, 80, 0, 0)
+
+		-- title scramble
+		local txt = base
+		if burst then
+			local t = {}
+			for i = 1, #base do
+				local ch = base:sub(i, i)
+				if ch ~= " " and rng:NextNumber() < 0.35 then
+					local r = rng:NextInteger(1, #chars)
+					ch = chars:sub(r, r)
+				end
+				t[i] = ch
+			end
+			txt = table.concat(t)
+		end
+		tRed.Text, tCyan.Text, tMain.Text = txt, txt, txt
+
+		-- random glitch slice
+		if burst then
+			slice.Position = UDim2.new(0.5, rng:NextInteger(-8, 8), rng:NextNumber(), 0)
+			slice.Size = UDim2.new(1, -24, 0, rng:NextInteger(2, 12))
+			slice.BackgroundColor3 = rng:NextNumber() < 0.5 and C.accent or C.accent2
+			slice.BackgroundTransparency = 0.7
+			side.Position = UDim2.fromOffset(rng:NextInteger(-2, 2), 36)
+		else
+			slice.BackgroundTransparency = 1
+			side.Position = UDim2.fromOffset(0, 36)
+		end
+	end
+end)
+
+-- scanline + border pulse
+task.spawn(function()
+	local t = 0
+	while gui.Parent do
+		local dt = RunService.RenderStepped:Wait()
+		t += dt
+		scan.Position = UDim2.new(0.5, 0, (t * 0.4) % 1, 0)
+		stroke.Color = C.accent:Lerp(C.accent2, (math.sin(t * 2) + 1) / 2)
+	end
+end)
+
+--// INTRO: надпись с названием при загрузке
+main.Visible = false
+open.Visible = false
+
+task.spawn(function()
+	local NAME = "GLITCH HUB"
+	local shown, active = 0, true
+
+	local intro = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 100 }, gui)
+
+	local function introLabel(color, z)
+		return new("TextLabel", { Text = "", Font = FONT, TextSize = 44, TextColor3 = color, BackgroundTransparency = 1,
+			TextTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45),
+			Size = UDim2.fromOffset(500, 60), ZIndex = z }, intro)
+	end
+	local iRed, iCyan, iMain = introLabel(C.accent, 101), introLabel(C.accent2, 101), introLabel(C.text, 102)
+
+	local sub = new("TextLabel", { Text = "murder mystery 2 // loading", Font = FONT, TextSize = 14, TextColor3 = C.dim,
+		BackgroundTransparency = 1, TextTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.45, 42), Size = UDim2.fromOffset(400, 20), ZIndex = 102 }, intro)
+
+	local barBg = new("Frame", { Size = UDim2.fromOffset(260, 4), AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.45, 70), BackgroundColor3 = C.off, BackgroundTransparency = 1,
+		BorderSizePixel = 0, ZIndex = 102 }, intro)
+	corner(barBg, 2)
+	local barFill = new("Frame", { Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = C.accent,
+		BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 103 }, barBg)
+	corner(barFill, 2)
+
+	-- glitch-анимация надписи
+	task.spawn(function()
+		while active do
+			task.wait(0.04)
+			local burst = rng:NextNumber() < 0.3
+			local off = burst and rng:NextInteger(4, 10) or 2
+			iRed.Position = UDim2.new(0.5, -off, 0.45, rng:NextInteger(-2, 2))
+			iCyan.Position = UDim2.new(0.5, off, 0.45, rng:NextInteger(-2, 2))
+			iMain.Position = UDim2.fromScale(0.5, 0.45)
+			local t = {}
+			for i = 1, shown do
+				local ch = NAME:sub(i, i)
+				if burst and ch ~= " " and rng:NextNumber() < 0.3 then
+					local r = rng:NextInteger(1, #chars)
+					ch = chars:sub(r, r)
+				end
+				t[i] = ch
+			end
+			local txt = table.concat(t)
+			iRed.Text, iCyan.Text, iMain.Text = txt, txt, txt
+		end
+	end)
+
+	local fi = TweenInfo.new(0.3)
+	TweenService:Create(intro, fi, { BackgroundTransparency = 0.25 }):Play()
+	TweenService:Create(iMain, fi, { TextTransparency = 0 }):Play()
+	TweenService:Create(iRed, fi, { TextTransparency = 0.35 }):Play()
+	TweenService:Create(iCyan, fi, { TextTransparency = 0.35 }):Play()
+	TweenService:Create(sub, fi, { TextTransparency = 0 }):Play()
+	TweenService:Create(barBg, fi, { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(barFill, fi, { BackgroundTransparency = 0 }):Play()
+
+	-- печать названия + заполнение полоски
+	TweenService:Create(barFill, TweenInfo.new(1.3, Enum.EasingStyle.Quad), { Size = UDim2.new(1, 0, 1, 0) }):Play()
+	for i = 1, #NAME do
+		shown = i
+		task.wait(0.09)
+	end
+	task.wait(0.6)
+	sub.Text = "loaded"
+	sub.TextColor3 = C.accent2
+	task.wait(0.5)
+
+	-- затухание и показ меню
+	local fo = TweenInfo.new(0.5)
+	for _, o in ipairs({ iMain, iRed, iCyan, sub }) do TweenService:Create(o, fo, { TextTransparency = 1 }):Play() end
+	TweenService:Create(barBg, fo, { BackgroundTransparency = 1 }):Play()
+	TweenService:Create(barFill, fo, { BackgroundTransparency = 1 }):Play()
+	TweenService:Create(intro, fo, { BackgroundTransparency = 1 }):Play()
+	task.wait(0.55)
+	active = false
+	intro:Destroy()
+	main.Visible = true
+	open.Visible = true
+end)
